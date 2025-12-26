@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Side GEOINT Source by eucerinn</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;900&display=swap');
+        body { background-color: #020617; font-family: 'JetBrains Mono', monospace; color: #cbd5e1; }
+        .title-font { font-family: 'Orbitron', sans-serif; }
+        .glass { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(56, 189, 248, 0.1); }
+        #map { height: 100%; border-radius: 1rem; }
+        .leaflet-tile { filter: brightness(0.4) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) !important; }
+        .neon-text { text-shadow: 0 0 10px rgba(56, 189, 248, 0.5); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-6">
+
+    <div class="max-w-7xl mx-auto w-full flex-grow space-y-6">
+        <header class="text-center">
+            <h1 class="title-font text-3xl md:text-5xl font-black text-white tracking-widest uppercase italic neon-text">
+                <span class="text-sky-500">Dark Side</span> GEOINT Source
+            </h1>
+            <p class="text-[10px] text-sky-500/50 mt-2 uppercase tracking-[0.4em]">Пробивной интерфейс</p>
+        </header>
+
+        <div class="grid lg:grid-cols-12 gap-6">
+            <div class="lg:col-span-4 space-y-6">
+                <div class="glass p-6 rounded-2xl border-l-4 border-sky-500">
+                    <form id="uploadForm" class="space-y-4">
+                        <input type="file" id="fileInput" class="hidden" accept="image/*">
+                        <label for="fileInput" class="flex flex-col items-center justify-center border border-dashed border-slate-700 rounded-xl py-8 cursor-pointer hover:bg-sky-500/5 transition-all">
+                            <span class="text-[10px] uppercase text-slate-500">Awaiting data input...</span>
+                            <span class="text-sky-500 font-bold mt-2">UPLOAD PHOTO</span>
+                        </label>
+                        <button type="submit" id="submitBtn" class="w-full bg-sky-600 hover:bg-sky-500 text-white py-3 rounded-lg font-bold text-xs tracking-widest uppercase transition-all shadow-lg shadow-sky-900/40">
+                            Start Analysis
+                        </button>
+                    </form>
+                </div>
+
+                <div id="imageResultContainer" class="glass p-2 rounded-2xl hidden">
+                    <p class="text-[9px] text-center text-slate-500 mb-2 uppercase tracking-widest">ИИшный объект верификации</p>
+                    <img id="processedImage" src="" class="rounded-lg w-full border border-sky-500/30">
+                </div>
+
+                <div id="resultsPanel" class="glass p-6 rounded-2xl hidden">
+                    <div class="space-y-4">
+                        <div id="objectTags" class="flex flex-wrap gap-2"></div>
+                        <div class="border-t border-slate-800 pt-4">
+                            <p id="addressText" class="text-sky-400 text-[11px] mb-2 font-bold uppercase"></p>
+                            <div id="coordText" class="text-[10px] text-slate-500 font-mono bg-black/40 p-2 rounded"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8 h-[500px] lg:h-[700px]">
+                <div class="glass p-2 rounded-3xl h-full relative">
+                    <div id="map"></div>
+                    <div class="absolute bottom-6 left-6 z-[1000] text-[9px] bg-black/80 p-2 border border-sky-500/30 text-sky-500 uppercase font-bold">
+                        System Status: Nominal // Signal: Encrypted // ALL HAIL DARKSIDE!
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-8 text-center pb-4">
+        <p class="text-[11px] text-slate-600 uppercase tracking-widest">
+            Сделано <a href="https://t.me/eucerinn" target="_blank" class="text-sky-500 hover:text-sky-400 font-bold transition-colors">@eucerinn</a>
+        </p>
+    </footer>
+
+    <audio id="beepSound" src="https://www.soundjay.com/buttons/beep-07a.mp3" preload="auto"></audio>
+
+    <script>
+        const map = L.map('map', { zoomControl: false }).setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        let marker = L.marker([0, 0]).addTo(map);
+        const beep = document.getElementById('beepSound');
+
+        document.getElementById('uploadForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const file = document.getElementById('fileInput').files[0];
+            if(!file) return;
+
+            const btn = document.getElementById('submitBtn');
+            btn.innerText = "Scanning...";
+            btn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/analyze', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    beep.play();
+
+                    document.getElementById('imageResultContainer').classList.remove('hidden');
+                    document.getElementById('processedImage').src = data.image_url + "?t=" + new Date().getTime(); 
+
+                    document.getElementById('resultsPanel').classList.remove('hidden');
+                    document.getElementById('objectTags').innerHTML = data.objects.map(obj => 
+                        `<span class="bg-sky-500/10 text-sky-400 px-2 py-1 rounded border border-sky-500/20 text-[9px] font-bold uppercase">${obj}</span>`
+                    ).join('');
+
+                    document.getElementById('addressText').innerText = data.address;
+                    
+                    if (data.coordinates) {
+                        const { lat, lon } = data.coordinates;
+                        document.getElementById('coordText').innerText = `LAT: ${lat.toFixed(6)} | LON: ${lon.toFixed(6)}`;
+                        map.flyTo([lat, lon], 16, { duration: 2 });
+                        marker.setLatLng([lat, lon]);
+                    }
+                }
+            } catch (err) { console.error(err); }
+            finally {
+                btn.innerText = "Start Analysis";
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
