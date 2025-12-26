@@ -1,0 +1,7 @@
+flask
+pillow
+ultralytics
+geopy
+opencv-python
+fpdf2
+gunicorn
